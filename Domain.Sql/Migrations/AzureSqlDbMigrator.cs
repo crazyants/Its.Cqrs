@@ -12,10 +12,19 @@ namespace Microsoft.Its.Domain.Sql.Migrations
     /// <remarks>For details on how to set the properties of this migrator, see https://msdn.microsoft.com/en-us/library/mt574871.aspx</remarks>
     public class AzureSqlDbMigrator : IDbMigrator
     {
+        /// <summary>
+        /// Initializes a new instance of the <see cref="AzureSqlDbMigrator"/> class.
+        /// </summary>
+        /// <param name="serviceObjective">The service objective.</param>
+        /// <param name="edition">The edition.</param>
+        /// <param name="maxSize">The maximum size.</param>
+        /// <param name="migrationVersion">The migration version.</param>
+        /// <exception cref="System.ArgumentNullException">
+        /// </exception>
         public AzureSqlDbMigrator(
-            string serviceObjective, 
+            string serviceObjective,
             string edition,
-            string maxSize, 
+            string maxSize,
             Version migrationVersion)
         {
             if (serviceObjective == null)
@@ -37,10 +46,19 @@ namespace Microsoft.Its.Domain.Sql.Migrations
             MigrationVersion = migrationVersion;
         }
 
-        public string Edition { get; set; }
+        /// <summary>
+        /// Gets the Azure SQL database edition.
+        /// </summary>
+        public string Edition { get; }
 
+        /// <summary>
+        /// Gets the maximum size for the database.
+        /// </summary>
         public string MaxSize { get; }
 
+        /// <summary>
+        /// Gets the service objective for the database.
+        /// </summary>
         public string ServiceObjective { get; }
 
         /// <summary>

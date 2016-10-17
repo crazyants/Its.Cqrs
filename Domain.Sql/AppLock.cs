@@ -183,6 +183,9 @@ SELECT @result";
             }
         }
 
+        /// <summary>
+        /// Releases the app lock.
+        /// </summary>
         public void Dispose()
         {
             disposables.Dispose();
