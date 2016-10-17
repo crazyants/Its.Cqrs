@@ -239,6 +239,12 @@ namespace Microsoft.Its.Domain.Testing
             return reservations.Count() > 1;
         }
 
+        /// <summary>
+        /// Gets a reserved value by its value and scope.
+        /// </summary>
+        /// <returns></returns>
+        /// <exception cref="System.ArgumentNullException">
+        /// </exception>
         public Task<ReservedValue> GetReservedValue(string value, string scope)
         {
             if (value == null)

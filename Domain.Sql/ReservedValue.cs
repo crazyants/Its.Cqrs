@@ -28,6 +28,9 @@ namespace Microsoft.Its.Domain.Sql
         /// </summary>
         public string Value { get; set; }
 
+        /// <summary>
+        /// Gets or sets a token which must be used when confirming the reservation.
+        /// </summary>
         [Index("IX_ReservedValues_ConfirmationToken_Scope", 1, IsUnique = true)]
         public string ConfirmationToken { get; set; }
 
