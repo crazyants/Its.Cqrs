@@ -5,31 +5,31 @@ using System;
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
-using Microsoft.Its.Recipes;
 
 namespace Microsoft.Its.Domain.Sql
 {
     internal static class EventHandlerProgressCalculator
     {
         public static IEnumerable<EventHandlerProgress> Calculate(
-            Func<DbContext> createDbContext,
+            Func<DbContext> createReadModelDbContext,
             Func<EventStoreDbContext> createEventStoreDbContext = null)
         {
-            if (createDbContext == null)
+            if (createReadModelDbContext == null)
             {
-                throw new ArgumentNullException(nameof(createDbContext));
+                throw new ArgumentNullException(nameof(createReadModelDbContext));
             }
 
-            int count;
+            createEventStoreDbContext = createEventStoreDbContext ??
+                                        (() => Configuration.Current.EventStoreDbContext());
 
-            using (var db = createEventStoreDbContext.IfNotNull()
-                                                     .Then(create => create())
-                                                     .Else(() => Configuration.Current.EventStoreDbContext()))
+            int eventStoreCount;
+
+            using (var db = createEventStoreDbContext())
             {
-                count = db.Events.Count();
+                eventStoreCount = db.Events.Count();
             }
 
-            if (count == 0)
+            if (eventStoreCount == 0)
             {
                 return Enumerable.Empty<EventHandlerProgress>();
             }
@@ -39,51 +39,52 @@ namespace Microsoft.Its.Domain.Sql
 
             ReadModelInfo[] readModelInfos;
 
-            using (var db = createDbContext())
+            using (var db = createReadModelDbContext())
             {
                 readModelInfos = db.Set<ReadModelInfo>().ToArray();
             }
+
             readModelInfos
-                    .ForEach(i =>
+                .ForEach(i =>
+                {
+                    var eventsProcessed = i.InitialCatchupEndTime.HasValue
+                                              ? i.BatchTotalEvents - i.BatchRemainingEvents
+                                              : i.InitialCatchupEvents - i.BatchRemainingEvents;
+
+                    if (eventsProcessed == 0)
                     {
-                        var eventsProcessed = i.InitialCatchupEndTime.HasValue
-                            ? i.BatchTotalEvents - i.BatchRemainingEvents
-                            : i.InitialCatchupEvents - i.BatchRemainingEvents;
+                        return;
+                    }
 
-                        long? timeTakenForProcessedEvents = null;
-                        if (i.BatchStartTime.HasValue && i.InitialCatchupStartTime.HasValue)
-                        {
-                            timeTakenForProcessedEvents = i.InitialCatchupEndTime.HasValue
-                                ? (now - i.BatchStartTime).Value.Ticks
-                                : (now - i.InitialCatchupStartTime).Value.Ticks;
-                        }
+                    long? timeTakenForProcessedEvents = null;
+                    if (i.BatchStartTime.HasValue && i.InitialCatchupStartTime.HasValue)
+                    {
+                        timeTakenForProcessedEvents = i.InitialCatchupEndTime.HasValue
+                                                          ? (now - i.BatchStartTime).Value.Ticks
+                                                          : (now - i.InitialCatchupStartTime).Value.Ticks;
+                    }
 
-                        if (eventsProcessed == 0)
-                        {
-                            return;
-                        }
+                    var eventHandlerProgress = new EventHandlerProgress
+                    {
+                        Name = i.Name,
+                        InitialCatchupEvents = i.InitialCatchupEvents,
+                        TimeTakenForInitialCatchup = i.InitialCatchupStartTime.HasValue
+                                                         ? (i.InitialCatchupEndTime ?? now) - i.InitialCatchupStartTime
+                                                         : null,
+                        TimeRemainingForCatchup = timeTakenForProcessedEvents.HasValue
+                                                      ? (TimeSpan?) TimeSpan.FromTicks((long) (timeTakenForProcessedEvents*(i.BatchRemainingEvents/(decimal) eventsProcessed)))
+                                                      : null,
+                        EventsRemaining = i.BatchRemainingEvents,
+                        PercentageCompleted = (1 - (decimal) i.BatchRemainingEvents/eventStoreCount)*100,
+                        LatencyInMilliseconds = i.LatencyInMilliseconds,
+                        LastUpdated = i.LastUpdated,
+                        CurrentAsOfEventId = i.CurrentAsOfEventId,
+                        FailedOnEventId = i.FailedOnEventId,
+                        Error = i.Error
+                    };
 
-                        var eventHandlerProgress = new EventHandlerProgress
-                        {
-                            Name = i.Name,
-                            InitialCatchupEvents = i.InitialCatchupEvents,
-                            TimeTakenForInitialCatchup = i.InitialCatchupStartTime.HasValue
-                                ? (i.InitialCatchupEndTime.HasValue ? i.InitialCatchupEndTime : now) - i.InitialCatchupStartTime
-                                : null,
-                            TimeRemainingForCatchup = eventsProcessed != 0 && timeTakenForProcessedEvents.HasValue
-                                ? (TimeSpan?) TimeSpan.FromTicks((long) (timeTakenForProcessedEvents*(i.BatchRemainingEvents/(decimal) eventsProcessed)))
-                                : null,
-                            EventsRemaining = i.BatchRemainingEvents,
-                            PercentageCompleted = (1 - ((decimal) i.BatchRemainingEvents/count))*100,
-                            LatencyInMilliseconds = i.LatencyInMilliseconds,
-                            LastUpdated = i.LastUpdated,
-                            CurrentAsOfEventId = i.CurrentAsOfEventId,
-                            FailedOnEventId = i.FailedOnEventId,
-                            Error = i.Error
-                        };
-
-                        progress.Add(eventHandlerProgress);
-                    });
+                    progress.Add(eventHandlerProgress);
+                });
             return progress;
         }
     }
