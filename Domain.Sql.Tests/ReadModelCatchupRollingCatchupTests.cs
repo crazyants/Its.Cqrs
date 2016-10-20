@@ -644,18 +644,10 @@ namespace Microsoft.Its.Domain.Sql.Tests
             eventsReceived.Should().Be(15);
         }
 
-        private static TimeSpan DefaultTimeout
-        {
-            get
-            {
-                if (!Debugger.IsAttached)
-                {
-                    return TimeSpan.FromSeconds(60);
-                }
-
-                return TimeSpan.FromMinutes(60);
-            }
-        }
+        private static TimeSpan DefaultTimeout =>
+            !Debugger.IsAttached
+                ? TimeSpan.FromSeconds(60)
+                : TimeSpan.FromMinutes(60);
 
         private static void UpdateReservedInventory(DbContext db, Order.ItemAdded e)
         {
