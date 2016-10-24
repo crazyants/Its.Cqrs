@@ -12,7 +12,6 @@ using System.Linq;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
-using System.Reactive.Subjects;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -26,7 +25,6 @@ using Test.Domain.Ordering;
 using Test.Domain.Ordering.Projections;
 using Assert = NUnit.Framework.Assert;
 using static Microsoft.Its.Domain.Sql.Tests.TestDatabases;
-using Unit = System.Reactive.Unit;
 
 namespace Microsoft.Its.Domain.Sql.Tests
 {
@@ -627,21 +625,19 @@ namespace Microsoft.Its.Domain.Sql.Tests
                     shouldThrow = false;
                     throw new Exception("oops!");
                 }
-
+                
                 return Configuration.Current.EventStoreDbContext();
             };
 
-            var subject = new Subject<Unit>();
-
-            var catchup = CreateReadModelCatchup<ReadModels1DbContext>(
+            using (CreateReadModelCatchup<ReadModels1DbContext>(
                     getDbContext,
                     Projector.Create<Order.CreditCardCharged>(e => eventsReceived++))
-                .PollEventStore(subject);
+                .PollEventStore(300.Milliseconds()))
+            {
+                await Task.Delay(1.Seconds());
 
-            subject.OnNext(Unit.Default);
-            subject.OnNext(Unit.Default);
-
-            eventsReceived.Should().Be(15);
+                eventsReceived.Should().Be(15);
+            }
         }
 
         private static TimeSpan DefaultTimeout =>
